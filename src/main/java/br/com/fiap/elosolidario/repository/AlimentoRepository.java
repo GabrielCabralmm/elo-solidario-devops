@@ -13,6 +13,8 @@ public interface AlimentoRepository extends JpaRepository<Alimento, Long> {
 
     List<Alimento> findByAtivoTrueOrderByNome();
 
+    boolean existsByCategoriaId(Long idCategoria);
+
     @Query("""
             select a from Alimento a
              where a.ativo = true
