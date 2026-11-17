@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -79,9 +80,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ErroResponse> banco(DataAccessException ex, HttpServletRequest request) {
-        Matcher matcher = ERRO_ORACLE.matcher(String.valueOf(ex.getMostSpecificCause().getMessage()));
+        Throwable causa = ex.getMostSpecificCause();
+        Matcher matcher = ERRO_ORACLE.matcher(String.valueOf(causa.getMessage()));
         if (matcher.find()) {
             return resposta(HttpStatus.CONFLICT, matcher.group(1).trim(), request, null);
+        }
+        if (causa instanceof SQLException erroSql && erroSql.getErrorCode() >= 50000 && erroSql.getErrorCode() < 51000) {
+            return resposta(HttpStatus.CONFLICT, erroSql.getMessage(), request, null);
         }
         log.error("Erro de banco de dados", ex);
         return resposta(HttpStatus.CONFLICT, "Não foi possível gravar os dados. Verifique as informações enviadas", request, null);
