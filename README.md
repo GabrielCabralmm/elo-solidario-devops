@@ -44,7 +44,7 @@ flowchart LR
     P -- exchange elo.reservas --> MQ[[RabbitMQ<br/>fila elo.notificacoes]]
     MQ --> L
     N --> DB
-    AI -- chat completions --> LLM[LLM<br/>Gemini / OpenAI / Groq]
+    AI -- chat completions --> LLM[LLM<br/>Gemini 3.5 Flash-Lite]
 ```
 
 Organização do código (`br.com.fiap.elosolidario`):
@@ -140,7 +140,7 @@ O provedor é configurável por variáveis de ambiente, porque o Spring AI usa o
 
 | Provedor | `AI_BASE_URL` | `AI_COMPLETIONS_PATH` | `AI_MODEL` |
 |---|---|---|---|
-| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | `/chat/completions` | `gemini-2.5-flash` |
+| Google Gemini (padrão) | `https://generativelanguage.googleapis.com/v1beta/openai` | `/chat/completions` | `gemini-3.5-flash-lite` |
 | OpenAI | `https://api.openai.com` | `/v1/chat/completions` | `gpt-4o-mini` |
 | Groq | `https://api.groq.com/openai` | `/v1/chat/completions` | `llama-3.3-70b-versatile` |
 
