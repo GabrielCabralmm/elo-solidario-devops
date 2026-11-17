@@ -219,7 +219,7 @@ Os DTOs usam Bean Validation (`@NotBlank`, `@Email`, `@Positive`, `@FutureOrPres
 
 ## Usuários de teste
 
-Todos com a senha **`Elo@2026`** (criados pelo script `04_inserts.sql` do Banco):
+Todos com a senha **`Elo@2026`** (criados pelo `04_inserts.sql` do Banco, no Oracle, ou pelo `scripts/script-bd.sql`, no Azure SQL):
 
 | E-mail | Perfil |
 |---|---|
