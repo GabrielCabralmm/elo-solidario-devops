@@ -1,0 +1,117 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pr: none
+
+variables:
+  - group: elo-solidario-segredos
+  - name: azureSubscription
+    value: conexao-azure-elosolidario
+  - name: webAppName
+    value: elo-solidario-rm563230
+  - name: artefato
+    value: elo-solidario-java
+  - name: MAVEN_CACHE_FOLDER
+    value: $(Pipeline.Workspace)/.m2/repository
+
+stages:
+  - stage: Build
+    displayName: Build e testes (CI)
+    jobs:
+      - job: BuildJava
+        displayName: Compilar, testar e empacotar
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+
+          - task: Cache@2
+            displayName: Cache das dependências do Maven
+            inputs:
+              key: 'maven | "$(Agent.OS)" | pom.xml'
+              restoreKeys: |
+                maven | "$(Agent.OS)"
+              path: $(MAVEN_CACHE_FOLDER)
+
+          - script: |
+              export JAVA_HOME=$(JAVA_HOME_21_X64)
+              java -version
+              mvn -B -Dmaven.repo.local=$(MAVEN_CACHE_FOLDER) clean package
+            displayName: Maven clean package (compila e roda os testes JUnit)
+
+          - task: PublishTestResults@2
+            displayName: Publicar resultados dos testes JUnit
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+              testRunTitle: 'Testes JUnit - EloSolidário API'
+              failTaskOnFailedTests: true
+
+          - task: CopyFiles@2
+            displayName: Separar o pacote e os scripts
+            inputs:
+              SourceFolder: $(Build.SourcesDirectory)
+              Contents: |
+                target/elo-solidario-java-*.jar
+                scripts/**
+              TargetFolder: $(Build.ArtifactStagingDirectory)
+
+          - task: PublishPipelineArtifact@1
+            displayName: Publicar artefato
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)
+              artifact: $(artefato)
+
+  - stage: Release
+    displayName: Deploy no Azure App Service (CD)
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - deployment: DeployWebApp
+        displayName: Publicar a API no App Service
+        pool:
+          vmImage: ubuntu-latest
+        environment: producao
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - download: current
+                  artifact: $(artefato)
+
+                - task: AzureWebApp@1
+                  displayName: Deploy do .jar no App Service Java 21
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    appType: webAppLinux
+                    appName: $(webAppName)
+                    package: $(Pipeline.Workspace)/$(artefato)/target/elo-solidario-java-*.jar
+                    runtimeStack: 'JAVA|21-java21'
+                    appSettings: >-
+                      -DB_URL "$(DB_URL)"
+                      -DB_USERNAME "$(DB_USERNAME)"
+                      -DB_PASSWORD "$(DB_PASSWORD)"
+                      -JWT_SECRET "$(JWT_SECRET)"
+                      -RABBITMQ_URL "$(RABBITMQ_URL)"
+                      -AI_API_KEY "$(AI_API_KEY)"
+                      -PORT 8080
+                      -WEBSITES_PORT 8080
+                      -TZ America/Sao_Paulo
+
+                - script: |
+                    URL="https://$(webAppName).azurewebsites.net/status"
+                    for tentativa in {1..20}; do
+                      if curl -fsS "$URL"; then
+                        echo
+                        echo "API no ar: $URL"
+                        exit 0
+                      fi
+                      echo "Tentativa $tentativa: aguardando a API iniciar..."
+                      sleep 15
+                    done
+                    echo "A API não respondeu em $URL"
+                    exit 1
+                  displayName: Teste de fumaça (GET /status)
