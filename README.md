@@ -7,9 +7,12 @@ Global Solution 2026/2 · CitizenTech · FIAP 2TDS
 | Gabriel Cabral Mendes Mariano | 563230 | 2TDSPO |
 | João Victor Santana dos Santos | 566063 | 2TDSPX |
 
-- **Deploy:** <link do Render>
-- **Swagger:** `<link do Render>/swagger-ui.html`
-- **Vídeo pitch:** <link do YouTube>
+- **Deploy (Azure App Service):** https://elo-solidario-rm563230.azurewebsites.net
+- **Swagger:** https://elo-solidario-rm563230.azurewebsites.net/swagger-ui.html
+- **Deploy alternativo (Render):** <link do Render>
+- **Vídeo pitch (Java):** <link do YouTube>
+- **Vídeo DevOps:** <link do YouTube>
+- **Azure DevOps:** <link da organização>
 
 ## O problema e a solução
 
@@ -26,7 +29,7 @@ ODS atendidos: **2** (Fome Zero), **10** (Redução das Desigualdades) e **12** 
 
 ## Tecnologias
 
-Java 21 · Spring Boot 3.5 · Spring Data JPA · Bean Validation · Spring Security + JWT (jjwt) · Spring AI 1.1 (cliente OpenAI compatível) · Spring AMQP (RabbitMQ) · springdoc-openapi (Swagger) · Oracle Database · JUnit 5 + Mockito · Docker
+Java 21 · Spring Boot 3.5 · Spring Data JPA · Bean Validation · Spring Security + JWT (jjwt) · Spring AI 1.1 (cliente OpenAI compatível) · Spring AMQP (RabbitMQ) · springdoc-openapi (Swagger) · Oracle Database ou Azure SQL (SQL Server) · JUnit 5 + Mockito · Docker · Azure DevOps · Azure CLI
 
 ## Arquitetura
 
@@ -73,7 +76,7 @@ Organização do código (`br.com.fiap.elosolidario`):
 | `Reserva` | `TB_ELO_RESERVA` | N:1 doação e beneficiário |
 | `Notificacao` | `TB_ELO_NOTIFICACAO` | N:1 usuário |
 
-As tabelas, gatilhos e pacotes PL/SQL são criados pelos scripts da disciplina de Banco de Dados. A regra "uma doação só pode ter uma reserva ativa" é validada na API, que devolve uma mensagem amigável, e garantida no Oracle pelo gatilho `TRG_ELO_RESERVA_STATUS`, que atualiza o status da doação. Depois de gravar a reserva, a API recarrega a doação para refletir o status definido pelo banco.
+A mesma API roda em dois bancos, e a URL em `DB_URL` define qual é usado. No **Oracle**, as tabelas, gatilhos e pacotes PL/SQL são criados pelos scripts da disciplina de Banco de Dados. No **Azure SQL**, que é o banco da nuvem, eles são criados pelo `scripts/script-bd.sql` em T-SQL, com gatilhos equivalentes. A regra "uma doação só pode ter uma reserva ativa" é validada na API, que devolve uma mensagem amigável, e garantida no Oracle pelo gatilho `TRG_ELO_RESERVA_STATUS`, que atualiza o status da doação. Depois de gravar a reserva, a API recarrega a doação para refletir o status definido pelo banco.
 
 ## Segurança e perfis
 
@@ -152,6 +155,10 @@ O provedor é configurável por variáveis de ambiente, porque o Spring AI usa o
 | POST | `/auth/login` | público | Login, devolve o JWT |
 | GET | `/auth/me` | logado | Dados do usuário logado |
 | GET | `/categorias` | logado | Categorias de alimento |
+| GET | `/categorias/{id}` | logado | Busca uma categoria |
+| POST | `/categorias` | ADMIN | Cria uma categoria |
+| PUT | `/categorias/{id}` | ADMIN | Atualiza uma categoria |
+| DELETE | `/categorias/{id}` | ADMIN | Exclui uma categoria sem alimentos |
 | GET | `/alimentos?idCategoria=&nome=&page=&size=` | logado | Catálogo paginado |
 | GET | `/doacoes?status=&bairro=&idCategoria=&page=&size=&sort=` | logado | Vitrine paginada (padrão: disponíveis) |
 | GET | `/doacoes/{id}` | logado | Detalhe com os alimentos |
@@ -207,7 +214,7 @@ Os DTOs usam Bean Validation (`@NotBlank`, `@Email`, `@Positive`, `@FutureOrPres
 | 401 | Sem token, token inválido ou login incorreto |
 | 403 | Perfil sem permissão ou recurso de outro usuário |
 | 404 | Doação, reserva, alimento ou rota inexistente |
-| 409 | Regra de negócio: doação indisponível, reserva duplicada, alimento vencido ou inativo, e-mail já cadastrado. Também os erros `ORA-20xxx` disparados pelos gatilhos e pacotes do Oracle |
+| 409 | Regra de negócio: doação indisponível, reserva duplicada, alimento vencido ou inativo, e-mail já cadastrado. Também os erros disparados pelos gatilhos (`ORA-20xxx` no Oracle e `THROW 50xxx` no SQL Server) |
 | 503 | Assistente de IA indisponível |
 
 ## Usuários de teste
@@ -224,7 +231,7 @@ Todos com a senha **`Elo@2026`** (criados pelo script `04_inserts.sql` do Banco)
 
 ## Como rodar
 
-Pré-requisitos: Java 21, Maven 3.9, acesso ao Oracle com os scripts do Banco executados (`01_ddl.sql` a `04_inserts.sql`) e um RabbitMQ.
+Pré-requisitos: Java 21, Maven 3.9, um RabbitMQ e um banco com as tabelas criadas: o Oracle com os scripts do Banco (`01_ddl.sql` a `04_inserts.sql`) ou o SQL Server/Azure SQL com o `scripts/script-bd.sql`.
 
 1. Suba o RabbitMQ local (painel em `http://localhost:15672`, usuário e senha `guest`):
 
@@ -236,7 +243,7 @@ Pré-requisitos: Java 21, Maven 3.9, acesso ao Oracle com os scripts do Banco ex
 
    | Variável | Descrição |
    |---|---|
-   | `DB_URL` | URL JDBC do Oracle (padrão: Oracle FIAP) |
+   | `DB_URL` | URL JDBC do Oracle (padrão: Oracle FIAP) ou do SQL Server, ex.: `jdbc:sqlserver://servidor.database.windows.net:1433;databaseName=db-elosolidario;encrypt=true` |
    | `DB_USERNAME` / `DB_PASSWORD` | Credenciais do Oracle |
    | `JWT_SECRET` | Segredo do token, com pelo menos 32 caracteres |
    | `RABBITMQ_URL` | URL AMQP (padrão: `amqp://guest:guest@localhost:5672`) |
@@ -258,7 +265,160 @@ mvn test
 
 ### Deploy no Render
 
-O projeto tem um `Dockerfile` com build multi-stage. No Render: **New Web Service → Docker**, apontando para este repositório e cadastrando as variáveis de ambiente acima. Para o RabbitMQ em nuvem, pode ser usada uma instância gratuita do CloudAMQP: basta copiar a URL `amqps://...` para `RABBITMQ_URL`.
+O projeto tem um Dockerfile com build multi-stage em `dockerfiles/Dockerfile`. No Render: **New Web Service → Docker**, apontando para este repositório, com **Dockerfile Path** `./dockerfiles/Dockerfile` e as variáveis de ambiente acima. Para o RabbitMQ em nuvem, pode ser usada uma instância gratuita do CloudAMQP: basta copiar a URL `amqps://...` para `RABBITMQ_URL`.
+
+## DevOps e nuvem (Azure)
+
+A API Java roda na **Azure**: o deploy é feito por **CI/CD no Azure DevOps** em um **App Service**, e os dados ficam no **Azure SQL Database**. Toda a infraestrutura é criada por **script Azure CLI**.
+
+![Arquitetura macro](docs/arquitetura.png)
+
+### Estrutura do repositório
+
+| Caminho | Conteúdo |
+|---|---|
+| `azure-pipeline.yml` | Pipeline YAML com os estágios **Build (CI)** e **Release (CD)** |
+| `scripts/infra-azure.sh` | Azure CLI: Resource Group, Azure SQL (servidor, firewall e banco), App Service Linux Java 21 e variáveis de ambiente. Também executa o `script-bd.sql` |
+| `scripts/script-bd.sql` | DDL do banco em T-SQL: 8 tabelas, gatilhos de auditoria e de reservas, e carga inicial |
+| `scripts/devops-configuracao.sh` | Azure DevOps CLI: projeto privado, import do repositório, políticas da main, grupo de variáveis secretas, pipeline e acesso do professor |
+| `scripts/remover-recursos.sh` | Remove o Resource Group depois da avaliação |
+| `dockerfiles/Dockerfile` | Imagem Docker da API (usada no deploy alternativo no Render) |
+
+### Recursos na Azure
+
+| Recurso | Nome | Configuração |
+|---|---|---|
+| Resource Group | `rg-elosolidario-rm563230` | Região `brazilsouth` (pode ser alterada pela variável `LOCATION`) |
+| Azure SQL Server | `sql-elosolidario-rm563230` | Firewall: serviços da Azure + IP de quem roda o script |
+| Azure SQL Database | `db-elosolidario` | Camada Basic |
+| App Service Plan | `plan-elosolidario-rm563230` | Linux, B1 |
+| Web App | `elo-solidario-rm563230` | Java 21 (Java SE), Always On, com as variáveis de ambiente da API |
+
+### Como provisionar
+
+No **Azure Cloud Shell (Bash)**, que já vem com o Azure CLI e o `sqlcmd`:
+
+```bash
+git clone <url do repositório> && cd elo-solidario-java
+bash scripts/infra-azure.sh
+```
+
+O script pede as senhas e as chaves sem mostrá-las na tela, e nenhuma credencial fica gravada no repositório. Se a assinatura não permitir a região padrão, rode `LOCATION=eastus2 bash scripts/infra-azure.sh`.
+
+### Azure DevOps
+
+```bash
+export ORGANIZACAO=https://dev.azure.com/<sua-organizacao>
+export REVISOR=rm563230@fiap.com.br
+export PROFESSOR=<e-mail do professor>
+az login && bash scripts/devops-configuracao.sh
+```
+
+O script cria ou configura:
+
+- o **projeto privado** com Git e o repositório importado do GitHub;
+- as **políticas da branch main**:
+  - pelo menos 1 aprovação, com o autor podendo aprovar o próprio PR (simulação);
+  - **work item vinculado** obrigatório;
+  - **revisor obrigatório** (RM563230);
+- o **grupo de variáveis `elo-solidario-segredos`**, com os segredos marcados como *secret*;
+- a **pipeline** apontando para `azure-pipeline.yml`;
+- o professor com licença **Basic** e no grupo **Project Administrators**.
+
+Falta um passo manual: criar a **service connection** do tipo *Azure Resource Manager* chamada `conexao-azure-elosolidario`, em **Project Settings → Service connections**, com a assinatura e o Resource Group `rg-elosolidario-rm563230`.
+
+### Pipeline (`azure-pipeline.yml`)
+
+| Estágio | Quando roda | Etapas |
+|---|---|---|
+| **Build (CI)** | A cada commit na `main`, ou seja, só depois do merge do PR (`pr: none`) | Cache do Maven → `mvn clean package` com Java 21 (compila e roda os **testes JUnit**) → publica os **resultados dos testes** → publica o **artefato** (`.jar` + `scripts/`) |
+| **Release (CD)** | Automaticamente, quando o Build gera um novo artefato | Ambiente `producao` → baixa o artefato → `AzureWebApp@1` faz o deploy do `.jar` no App Service e aplica as **variáveis de ambiente** → teste de fumaça em `GET /status` |
+
+Variáveis usadas na pipeline:
+
+| Variável | Onde fica | Uso |
+|---|---|---|
+| `azureSubscription`, `webAppName`, `artefato` | `azure-pipeline.yml` | Service connection, nome do App Service e nome do artefato |
+| `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | Grupo `elo-solidario-segredos` (secret) | Conexão com o Azure SQL |
+| `JWT_SECRET` | Grupo `elo-solidario-segredos` (secret) | Assinatura dos tokens |
+| `RABBITMQ_URL`, `AI_API_KEY` | Grupo `elo-solidario-segredos` (secret) | CloudAMQP e Gemini |
+
+### Fluxo de trabalho
+
+1. Criar a tarefa no **Azure Boards**, por exemplo *"Exibir a versão da API no /status"*.
+2. Criar a branch a partir da tarefa, ou com `git checkout -b feature/<id>-descricao`.
+3. Alterar o **código-fonte**, fazer o commit com `AB#<id>` na mensagem e o push.
+4. Abrir o **Pull Request** para a `main`, vinculado à tarefa, e aprová-lo como revisor (RM).
+5. Fazer o **merge**: o Build roda, publica os testes e o artefato, e a Release faz o deploy sozinha.
+6. Conferir a alteração na API publicada e fechar a tarefa, com os links de branch, commits e PR.
+
+### CRUD em duas tabelas (JSON)
+
+Base: `https://elo-solidario-rm563230.azurewebsites.net`. Primeiro faça o login e use o token em `Authorization: Bearer <token>`:
+
+```json
+POST /auth/login
+{ "email": "admin@elosolidario.com", "senha": "Elo@2026" }
+```
+
+**Tabela `TB_ELO_CATEGORIA`** (perfil ADMIN):
+
+```json
+POST /categorias
+{ "nome": "Bebidas", "perecivel": false }
+
+GET /categorias/{id}
+
+PUT /categorias/{id}
+{ "nome": "Bebidas e Sucos", "perecivel": true }
+
+DELETE /categorias/{id}
+```
+
+**Tabelas `TB_ELO_DOACAO` e `TB_ELO_ITEM_DOACAO`** (perfil DOADOR, login `ana.souza@email.com`):
+
+```json
+POST /doacoes
+{
+  "titulo": "Cesta para a demonstração",
+  "bairro": "Vila Mariana",
+  "localRetirada": "Portaria do prédio, Rua Domingos de Morais, 900",
+  "observacao": "Produtos fechados",
+  "itens": [
+    { "idAlimento": 1, "quantidade": 2, "unidade": "PCT", "pesoKg": 2, "dtValidade": "2027-03-10" },
+    { "idAlimento": 13, "quantidade": 1, "unidade": "L", "pesoKg": 0.9, "dtValidade": "2027-05-15" }
+  ]
+}
+
+GET /doacoes/{id}
+
+PUT /doacoes/{id}
+{
+  "titulo": "Cesta para a demonstração (editada)",
+  "bairro": "Vila Mariana",
+  "localRetirada": "Portaria do prédio, Rua Domingos de Morais, 900",
+  "observacao": "Retirar até as 18h",
+  "itens": [
+    { "idAlimento": 1, "quantidade": 3, "unidade": "PCT", "pesoKg": 3, "dtValidade": "2027-03-10" },
+    { "idAlimento": 2, "quantidade": 1, "unidade": "PCT", "pesoKg": 1, "dtValidade": "2027-01-20" }
+  ]
+}
+
+DELETE /doacoes/{id}
+```
+
+Para conferir cada operação **direto no banco** (Query editor do Azure SQL no portal, Azure Data Studio ou `sqlcmd`):
+
+```sql
+SELECT * FROM TB_ELO_CATEGORIA ORDER BY ID_CATEGORIA DESC;
+
+SELECT * FROM TB_ELO_DOACAO ORDER BY ID_DOACAO DESC;
+SELECT * FROM TB_ELO_ITEM_DOACAO ORDER BY ID_ITEM DESC;
+
+SELECT TOP 10 * FROM TB_ELO_AUDITORIA_DOACAO ORDER BY ID_AUDITORIA DESC;
+```
+
+O gatilho `TRG_ELO_AUDITORIA_DOACAO` grava cada INSERT, UPDATE e DELETE de doação em `TB_ELO_AUDITORIA_DOACAO`, o que deixa as operações do CRUD rastreáveis no banco.
 
 ## Declaração de uso de IA
 
