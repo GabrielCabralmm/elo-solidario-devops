@@ -4,8 +4,8 @@ set -euo pipefail
 # Variáveis
 ORGANIZACAO="${ORGANIZACAO:?Informe a URL da organização, ex.: https://dev.azure.com/minha-org}"
 PROJETO="${PROJETO:-EloSolidario}"
-REPOSITORIO="${REPOSITORIO:-elo-solidario-java}"
-GITHUB_URL="${GITHUB_URL:-https://github.com/GabrielCabralmm/elo-solidario-java.git}"
+REPOSITORIO="${REPOSITORIO:-elo-solidario-devops}"
+GITHUB_URL="${GITHUB_URL:-https://github.com/GabrielCabralmm/elo-solidario-devops.git}"
 REVISOR="${REVISOR:?Informe o e-mail do revisor padrão (seu RM), ex.: rm563230@fiap.com.br}"
 PROFESSOR="${PROFESSOR:-}"
 GRUPO_VARIAVEIS="elo-solidario-segredos"
